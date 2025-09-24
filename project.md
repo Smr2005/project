@@ -651,26 +651,55 @@ Inspect the sample rows and return JSON ONLY:
 import logging
 import os
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 
 from utils.config import LOG_LEVEL
-from db.mariadb_client import get_connection, get_schema_for_tables, get_full_schema, explain_query, fetch_sample_rows
+from db.mariadb_client import (
+    get_connection,
+    get_schema_for_tables,
+    get_full_schema,
+    explain_query,
+    fetch_sample_rows,
+)
 from agents.query_optimizer import optimize_query
 from agents.schema_advisor import advise_schema
 from agents.cost_advisor import estimate_cost
 from agents.data_validator import validate_query
 
+# --------------------------------------------------
+# Logging
+# --------------------------------------------------
 logging.basicConfig(level=getattr(logging, LOG_LEVEL))
 logger = logging.getLogger(__name__)
 
+# --------------------------------------------------
+# FastAPI App
+# --------------------------------------------------
 app = FastAPI(title="MariaDB Query Optimizer (Claude Agents)")
 
+# Serve static frontend
+frontend_path = os.path.join(os.path.dirname(__file__), "frontend")
+app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+
+@app.get("/")
+async def serve_frontend():
+    """Serve index.html at root"""
+    return FileResponse(os.path.join(frontend_path, "index.html"))
+
+# --------------------------------------------------
+# Request Model
+# --------------------------------------------------
 class AnalyzeRequest(BaseModel):
     sql: str
     tables: Optional[List[str]] = []
     run_in_sandbox: Optional[bool] = True
 
+# --------------------------------------------------
+# Helper to validate agent responses
+# --------------------------------------------------
 def validate_agent_response(resp: dict):
     if not isinstance(resp, dict):
         return False, "Not a dict"
@@ -680,11 +709,15 @@ def validate_agent_response(resp: dict):
         return False, f"Missing keys: {missing}"
     return True, None
 
+# --------------------------------------------------
+# API Endpoint
+# --------------------------------------------------
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest):
     sql = req.sql.strip()
     if not sql:
         raise HTTPException(status_code=400, detail="SQL query required")
+
     try:
         conn = get_connection()
     except Exception as e:
@@ -692,14 +725,17 @@ def analyze(req: AnalyzeRequest):
         raise HTTPException(status_code=500, detail="Failed to connect to DB")
 
     try:
+        # Schema context
         if req.tables:
             schema = get_schema_for_tables(conn, req.tables)
         else:
             schema = get_full_schema(conn)
 
+        # Execution context
         explain = explain_query(conn, sql)
         sample = fetch_sample_rows(conn, sql)
 
+        # Run agents
         opt = optimize_query(sql, schema, explain, sample)
         schema_r = advise_schema(sql, schema)
         cost_r = estimate_cost(sql, explain)
@@ -709,7 +745,7 @@ def analyze(req: AnalyzeRequest):
             "optimizer": opt,
             "schema_advisor": schema_r,
             "cost_advisor": cost_r,
-            "data_validator": validate_r
+            "data_validator": validate_r,
         }
 
         # Validate agent outputs
@@ -717,20 +753,30 @@ def analyze(req: AnalyzeRequest):
             ok, err = validate_agent_response(resp)
             if not ok:
                 logger.warning("Agent %s returned invalid response: %s", name, err)
-                agents[name] = {"agent": name, "status": "error", "query": sql, "safe_query": None, "details": {"error": err, "raw": resp}}
+                agents[name] = {
+                    "agent": name,
+                    "status": "error",
+                    "query": sql,
+                    "safe_query": None,
+                    "details": {"error": err, "raw": resp},
+                }
 
-        optimized_sql = opt.get("details", {}).get("optimized_query") if isinstance(opt, dict) else None
+        # If optimizer gave a new query → run explain on it
+        optimized_sql = (
+            opt.get("details", {}).get("optimized_query") if isinstance(opt, dict) else None
+        )
         optimized_explain = None
         if optimized_sql:
             optimized_explain = explain_query(conn, optimized_sql)
 
+        # Final response
         response = {
             "original_query": sql,
             "schema_context": schema,
             "original_explain": explain,
             "sample_rows": sample,
             "agents": agents,
-            "optimized_explain": optimized_explain
+            "optimized_explain": optimized_explain,
         }
 
         return response
@@ -740,6 +786,7 @@ def analyze(req: AnalyzeRequest):
             conn.close()
         except Exception:
             pass
+
 ```
 
 ---
