@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MariaDB Query Optimizer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>⚡ MariaDB Query Optimizer — AI Agents</h1>
+      <p>Paste your SQL, run the analysis, and see AI-powered insights instantly.</p>
+    </header>
+
+    <main>
+      <!-- Input Section -->
+      <section class="input-box">
+        <textarea id="sql" placeholder="Paste SQL query here..."></textarea>
+        <div class="controls">
+          <select id="sandbox">
+            <option value="true">Run in Sandbox (Safe)</option>
+            <option value="false">Run in Production</option>
+          </select>
+          <button id="run">▶ Run Analysis</button>
+          <button id="clear">✖ Clear</button>
+          <button onclick="analyzeSchema()">Analyze Schema</button>
+          <div id="schema-results"></div>
+        </div>
+      </section>
+
+      <!-- Messages -->
+      <section id="message" class="hidden"></section>
+
+      <!-- Results Section -->
+      <section id="results" class="hidden">
+        <div class="card">
+          <h2>📋 Summary</h2>
+          <pre id="summary"></pre>
+        </div>
+
+        <div class="card">
+          <h2>✅ Optimized Query</h2>
+          <pre id="opt-query"></pre>
+        </div>
+
+        <div class="card">
+          <h2>📌 Index / Schema Recommendations</h2>
+          <pre id="recommendations"></pre>
+        </div>
+
+        <div class="card">
+          <h2>⚠ Warnings</h2>
+          <pre id="warnings"></pre>
+        </div>
+
+        <div class="card">
+          <h2>📈 Estimated Impact</h2>
+          <pre id="impact"></pre>
+        </div>
+
+        <div class="card">
+          <h2>🤖 Extra AI Notes</h2>
+          <pre id="ai-notes"></pre>
+        </div>
+
+        <div class="card">
+          <h2>🛠 Explain Plan</h2>
+          <pre id="plan"></pre>
+        </div>
+
+        <div class="card">
+          <h2>📊 Sample Rows</h2>
+          <pre id="rows"></pre>
+        </div>
+
+        <div class="card">
+          <h2>🧾 Raw JSON Response</h2>
+          <pre id="raw"></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built with ❤️ using FastAPI + MariaDB + Claude AI</p>
+    </footer>
+  </div>
+
+  <!-- Load JS only once, after DOM is ready -->
+  <script src="/static/script.js"></script>
+</body>
+</html>
